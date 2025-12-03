@@ -54,7 +54,7 @@ def filter_stocks_by_industries(stock_list, industries):
     Returns:
         pandas DataFrame，筛选后的股票列表
     """
-    if not industries or not stock_list.empty:
+    if not industries or stock_list.empty:
         return stock_list
 
     # 筛选指定行业的股票

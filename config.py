@@ -16,7 +16,7 @@ MONTH_TO_TRADING_DAYS = 20  # 1个月≈20个交易日
 MAX_LONG_YEARS = 15  # 长期时间最高值为15年
 
 # 用户需要配置的参数
-TUSHARE_TOKEN = '2876ea85cb005fb5fa17c809a98174f2d5aae8b1f830110a5ead6211'  # 请在此处填入您的tushare API token
+TUSHARE_TOKEN = '5f5eaf818e3a6cdb00c946608987453374e56735c7b4945abd378c96'  # 请在此处填入您的tushare API token
 
 # 验证配置
 def validate_config():
