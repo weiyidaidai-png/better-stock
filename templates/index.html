@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A股股票均线差异筛选工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .config-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .config-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input {
+            padding: 10px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a6fd8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+        }
+
+        .industry-filter-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .industry-filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .industry-filter-header h3 {
+            margin: 0;
+            color: #495057;
+        }
+
+        .industry-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .industry-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .industry-item:hover {
+            background-color: #e9ecef;
+        }
+
+        .industry-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+        }
+
+        .selected-industries {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #e7f3ff;
+            border-radius: 6px;
+            border: 1px solid #b3d9ff;
+        }
+
+        .selected-industries strong {
+            color: #0066cc;
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .status-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: none;
+        }
+
+        .progress-container {
+            margin-top: 15px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e1e5e9;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+        }
+
+        .results-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: none;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .results-count {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .stock-link {
+            color: #667eea;
+            text-decoration: none;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .stock-link:hover {
+            text-decoration: underline;
+        }
+
+        .diff-positive {
+            color: #dc3545;
+            font-weight: 600;
+        }
+
+        .diff-negative {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .chart-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: none;
+        }
+
+        .chart-container {
+            height: 500px;
+            margin-top: 20px;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border: 1px solid #f5c6cb;
+        }
+
+        .info-message {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .config-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .results-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📈 A股股票均线差异筛选工具</h1>
+            <p>基于tushare数据，筛选短期均线与长期均线差异明显的股票</p>
+        </div>
+
+        <div class="config-section">
+            <h2>参数配置</h2>
+            <form class="config-form" id="configForm">
+                <div class="form-group">
+                    <label for="shortPeriod">短期均值周期</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="number" id="shortPeriod" value="{{ default_short_period }}" min="1" required>
+                        <select id="shortPeriodUnit" style="padding: 10px 15px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 16px;">
+                            <option value="day" {% if default_short_unit == 'day' %}selected{% endif %}>日</option>
+                            <option value="month" {% if default_short_unit == 'month' %}selected{% endif %}>月</option>
+                            <option value="year" {% if default_short_unit == 'year' %}selected{% endif %}>年</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="longPeriod">长期均值周期</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="number" id="longPeriod" value="{{ default_long_period }}" min="1" required>
+                        <select id="longPeriodUnit" style="padding: 10px 15px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 16px;">
+                            <option value="day" {% if default_long_unit == 'day' %}selected{% endif %}>日</option>
+                            <option value="month" {% if default_long_unit == 'month' %}selected{% endif %}>月</option>
+                            <option value="year" {% if default_long_unit == 'year' %}selected{% endif %}>年</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="diffThreshold">差异百分比阈值（%）</label>
+                    <input type="number" id="diffThreshold" value="{{ default_diff_threshold }}" min="0" max="100" step="0.1" required>
+                </div>
+                <button type="submit" class="btn btn-primary" id="startBtn">
+                    <span id="btnText">开始筛选</span>
+                    <span class="loading" id="btnLoading" style="display: none;"></span>
+                </button>
+                <button type="button" class="btn btn-primary" id="resetBtn" style="background: #6c757d;">
+                    重置筛选
+                </button>
+            </form>
+
+            <!-- 行业预筛选部分 -->
+            <div class="industry-filter-section">
+                <div class="industry-filter-header">
+                    <h3>🎯 申万一级行业预筛选</h3>
+                    <div>
+                        <button type="button" class="btn btn-secondary" id="selectAllPreIndustries" style="padding: 6px 15px; font-size: 14px;">全选</button>
+                        <button type="button" class="btn btn-secondary" id="clearAllPreIndustries" style="padding: 6px 15px; font-size: 14px;">清空</button>
+                    </div>
+                </div>
+
+                <div class="selected-industries" id="preSelectedIndustries" style="display: none;">
+                    <strong>已选择行业：</strong><span id="preSelectedCount">0</span>个
+                </div>
+
+                <div class="industry-selector" id="preIndustrySelector">
+                    {% for industry in sw_industries %}
+                    <div class="industry-item">
+                        <input type="checkbox" name="pre_industries" value="{{ industry }}" id="pre_{{ loop.index }}">
+                        <label for="pre_{{ loop.index }}">{{ industry }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 宽基指数预筛选部分 -->
+            <div class="industry-filter-section">
+                <div class="industry-filter-header">
+                    <h3>📊 宽基指数预筛选</h3>
+                    <div>
+                        <button type="button" class="btn btn-secondary" id="selectAllPreIndexes" style="padding: 6px 15px; font-size: 14px;">全选</button>
+                        <button type="button" class="btn btn-secondary" id="clearAllPreIndexes" style="padding: 6px 15px; font-size: 14px;">清空</button>
+                    </div>
+                </div>
+
+                <div class="selected-industries" id="preSelectedIndexes" style="display: none;">
+                    <strong>已选择指数：</strong><span id="preSelectedIndexesCount">0</span>个
+                </div>
+
+                <div class="industry-selector" id="preIndexesSelector">
+                    {% for index in wide_indexes %}
+                    <div class="industry-item">
+                        <input type="checkbox" name="pre_indexes" value="{{ index }}" id="index_{{ loop.index }}">
+                        <label for="index_{{ loop.index }}">{{ index }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="status-section" id="statusSection">
+            <h3>筛选状态</h3>
+            <div id="statusText">正在准备筛选...</div>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="results-section" id="resultsSection">
+            <div class="results-header">
+                <h3>筛选结果</h3>
+                <div class="results-count" id="resultsCount">找到 0 只符合条件的股票</div>
+            </div>
+
+            <!-- 行业后筛选部分 -->
+            <div class="industry-filter-section">
+                <div class="industry-filter-header">
+                    <h3>🔍 申万一级行业后筛选</h3>
+                    <div>
+                        <button type="button" class="btn btn-secondary" id="selectAllPostIndustries" style="padding: 6px 15px; font-size: 14px;">全选</button>
+                        <button type="button" class="btn btn-secondary" id="clearAllPostIndustries" style="padding: 6px 15px; font-size: 14px;">清空</button>
+                        <button type="button" class="btn btn-primary" id="applyPostFilter" style="padding: 6px 15px; font-size: 14px;">应用筛选</button>
+                        <button type="button" class="btn btn-secondary" id="resetPostFilter" style="padding: 6px 15px; font-size: 14px;">重置筛选</button>
+                    </div>
+                </div>
+
+                <div class="selected-industries" id="postSelectedIndustries" style="display: none;">
+                    <strong>已选择行业：</strong><span id="postSelectedCount">0</span>个
+                </div>
+
+                <div class="industry-selector" id="postIndustrySelector">
+                    <!-- 后筛选行业列表将通过JavaScript动态加载 -->
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>股票代码</th>
+                            <th>股票名称</th>
+                            <th>所属行业</th>
+                            <th>差异百分比</th>
+                            <th>最新收盘价</th>
+                            <th>长期均值</th>
+                            <th>短期均值</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="chart-section" id="chartSection">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 id="chartTitle">股票价格走势图</h3>
+                <button type="button" class="btn btn-primary" id="closeChartBtn" style="background: #6c757d;">
+                    关闭图表
+                </button>
+            </div>
+            <div class="chart-container" id="priceChart"></div>
+        </div>
+    </div>
+
+    <script>
+        let analysisInterval = null;
+        let priceChart = null;
+        let currentPostIndustries = [];
+
+        // 表单提交处理
+        document.getElementById('configForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            startAnalysis();
+        });
+
+        // 重置按钮处理
+        document.getElementById('resetBtn').addEventListener('click', function() {
+            resetAnalysis();
+        });
+
+        // 关闭图表按钮处理
+        document.getElementById('closeChartBtn').addEventListener('click', function() {
+            document.getElementById('chartSection').style.display = 'none';
+        });
+
+        // 开始分析
+        function startAnalysis() {
+            const shortPeriod = document.getElementById('shortPeriod').value;
+            const shortPeriodUnit = document.getElementById('shortPeriodUnit').value;
+            const longPeriod = document.getElementById('longPeriod').value;
+            const longPeriodUnit = document.getElementById('longPeriodUnit').value;
+            const diffThreshold = document.getElementById('diffThreshold').value;
+
+            // 获取选中的预筛选行业
+            const selectedPreIndustries = Array.from(document.querySelectorAll('input[name="pre_industries"]:checked'))
+                .map(checkbox => checkbox.value);
+
+            // 获取选中的预筛选宽基指数
+            const selectedPreIndexes = Array.from(document.querySelectorAll('input[name="pre_indexes"]:checked'))
+                .map(checkbox => checkbox.value);
+
+            // 禁用按钮
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('btnText').style.display = 'none';
+            document.getElementById('btnLoading').style.display = 'inline-block';
+
+            // 显示状态区域
+            document.getElementById('statusSection').style.display = 'block';
+            document.getElementById('statusText').textContent = '正在初始化筛选...';
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressFill').textContent = '0%';
+
+            // 隐藏结果和图表区域
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('chartSection').style.display = 'none';
+
+            // 构建表单数据
+            const formData = new FormData();
+            formData.append('short_period', shortPeriod);
+            formData.append('short_period_unit', shortPeriodUnit);
+            formData.append('long_period', longPeriod);
+            formData.append('long_period_unit', longPeriodUnit);
+            formData.append('diff_threshold', diffThreshold);
+
+            // 添加选中的行业
+            selectedPreIndustries.forEach(industry => {
+                formData.append('pre_industries[]', industry);
+            });
+
+            // 添加选中的宽基指数
+            selectedPreIndexes.forEach(index => {
+                formData.append('pre_indexes[]', index);
+            });
+
+            // 发送配置请求
+            fetch('/api/configure', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const industryInfo = selectedPreIndustries.length > 0
+                        ? `（行业预筛选：${selectedPreIndustries.join('、')}）`
+                        : '';
+                    const indexInfo = selectedPreIndexes.length > 0
+                        ? `（指数预筛选：${selectedPreIndexes.join('、')}）`
+                        : '';
+                    document.getElementById('statusText').textContent = `开始分析 ${data.total_stocks} 只股票${industryInfo}${indexInfo}...`;
+                    // 开始轮询状态
+                    startStatusPolling();
+                } else {
+                    showError(data.message);
+                    resetUI();
+                }
+            })
+            .catch(error => {
+                showError('配置请求失败: ' + error.message);
+                resetUI();
+            });
+        }
+
+        // 开始状态轮询
+        function startStatusPolling() {
+            if (analysisInterval) {
+                clearInterval(analysisInterval);
+            }
+
+            analysisInterval = setInterval(function() {
+                fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('progressFill').style.width = data.progress + '%';
+                    document.getElementById('progressFill').textContent = data.progress + '%';
+
+                    if (data.status === 'completed') {
+                        clearInterval(analysisInterval);
+                        document.getElementById('statusText').textContent = '分析完成，正在加载结果...';
+                        loadResults();
+                    } else if (data.status === 'error') {
+                        clearInterval(analysisInterval);
+                        showError('分析过程中发生错误');
+                        resetUI();
+                    }
+                })
+                .catch(error => {
+                    console.error('获取状态失败:', error);
+                });
+            }, 1000);
+        }
+
+        // 加载结果
+        function loadResults() {
+            fetch('/api/results')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayResults(data.data);
+                    document.getElementById('statusSection').style.display = 'none';
+                    document.getElementById('resultsSection').style.display = 'block';
+                } else {
+                    showError(data.message);
+                    document.getElementById('statusSection').style.display = 'none';
+                }
+                resetUI();
+            })
+            .catch(error => {
+                showError('加载结果失败: ' + error.message);
+                resetUI();
+            });
+        }
+
+        // 显示结果
+        function displayResults(results) {
+            // 显示统计信息
+            const stats = results.statistics;
+            document.getElementById('resultsCount').textContent = `找到 ${stats.total} 只符合条件的股票（上涨 ${stats.up}，下跌 ${stats.down}）`;
+
+            // 清除之前的统计摘要
+            const existingStats = document.querySelector('.results-header .info-message');
+            if (existingStats) {
+                existingStats.remove();
+            }
+
+            // 显示统计摘要
+            const resultsHeader = document.querySelector('.results-header');
+            const statsDiv = document.createElement('div');
+            statsDiv.className = 'info-message';
+            statsDiv.style.marginTop = '0';
+            statsDiv.innerHTML = `
+                <strong>统计摘要：</strong>
+                总股票数: ${stats.total} |
+                上涨股票: ${stats.up} |
+                下跌股票: ${stats.down} |
+                平均差异: ${stats.avg_diff > 0 ? '+' : ''}${stats.avg_diff.toFixed(2)}%
+            `;
+            resultsHeader.appendChild(statsDiv);
+
+            const tbody = document.getElementById('resultsTableBody');
+            tbody.innerHTML = '';
+
+            results.stocks.forEach(stock => {
+                const row = document.createElement('tr');
+                const diffClass = stock.diff_percent > 0 ? 'diff-positive' : 'diff-negative';
+                const diffText = `${stock.diff_percent > 0 ? '+' : ''}${stock.diff_percent.toFixed(2)}%`;
+
+                row.innerHTML = `
+                    <td><a href="#" class="stock-link" data-ts-code="${stock.ts_code}">${stock.ts_code}</a></td>
+                    <td>${stock.name}</td>
+                    <td>${stock.industry || '未知行业'}</td>
+                    <td class="${diffClass}">${diffText}</td>
+                    <td>¥${stock.latest_close.toFixed(2)}</td>
+                    <td>¥${stock.long_mean.toFixed(2)}</td>
+                    <td>¥${stock.short_mean.toFixed(2)}</td>
+                `;
+
+                tbody.appendChild(row);
+            });
+
+            // 添加股票点击事件
+            document.querySelectorAll('.stock-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const tsCode = this.getAttribute('data-ts-code');
+                    showStockChart(tsCode);
+                });
+            });
+
+            // 加载后筛选行业列表
+            loadPostFilterIndustries();
+        }
+
+        // 加载后筛选行业列表
+        function loadPostFilterIndustries() {
+            fetch('/api/available_industries')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const selector = document.getElementById('postIndustrySelector');
+                    selector.innerHTML = '';
+
+                    data.data.forEach((industry, index) => {
+                        const industryItem = document.createElement('div');
+                        industryItem.className = 'industry-item';
+                        industryItem.innerHTML = `
+                            <input type="checkbox" name="post_industries" value="${industry}" id="post_${index}">
+                            <label for="post_${index}">${industry}</label>
+                        `;
+                        selector.appendChild(industryItem);
+                    });
+
+                    // 添加后筛选事件监听
+                    setupPostFilterEvents();
+                } else {
+                    showError('加载行业列表失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                showError('加载行业列表失败: ' + error.message);
+            });
+        }
+
+        // 设置后筛选事件监听
+        function setupPostFilterEvents() {
+            // 后筛选行业选择事件
+            document.querySelectorAll('input[name="post_industries"]').forEach(checkbox => {
+                checkbox.addEventListener('change', updatePostSelectedCount);
+            });
+
+            // 全选后筛选行业
+            document.getElementById('selectAllPostIndustries').addEventListener('click', function() {
+                document.querySelectorAll('input[name="post_industries"]').forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+                updatePostSelectedCount();
+            });
+
+            // 清空后筛选行业
+            document.getElementById('clearAllPostIndustries').addEventListener('click', function() {
+                document.querySelectorAll('input[name="post_industries"]').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                updatePostSelectedCount();
+            });
+
+            // 应用后筛选
+            document.getElementById('applyPostFilter').addEventListener('click', applyPostFilter);
+
+            // 重置后筛选
+            document.getElementById('resetPostFilter').addEventListener('click', resetPostFilter);
+        }
+
+        // 更新后筛选已选择数量
+        function updatePostSelectedCount() {
+            const selectedCount = document.querySelectorAll('input[name="post_industries"]:checked').length;
+            document.getElementById('postSelectedCount').textContent = selectedCount;
+
+            if (selectedCount > 0) {
+                document.getElementById('postSelectedIndustries').style.display = 'block';
+            } else {
+                document.getElementById('postSelectedIndustries').style.display = 'none';
+            }
+        }
+
+        // 应用后筛选
+        function applyPostFilter() {
+            const selectedIndustries = Array.from(document.querySelectorAll('input[name="post_industries"]:checked'))
+                .map(checkbox => checkbox.value);
+
+            currentPostIndustries = selectedIndustries;
+
+            fetch('/api/filter_by_industries', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ post_industries: selectedIndustries })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.message) {
+                        showInfo(data.message);
+                    }
+                    displayResults(data.data);
+                } else {
+                    showError(data.message);
+                }
+            })
+            .catch(error => {
+                showError('应用行业筛选失败: ' + error.message);
+            });
+        }
+
+        // 重置后筛选
+        function resetPostFilter() {
+            currentPostIndustries = [];
+
+            fetch('/api/filter_by_industries', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ post_industries: [] })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayResults(data.data);
+                    // 清除所有选中状态
+                    document.querySelectorAll('input[name="post_industries"]').forEach(checkbox => {
+                        checkbox.checked = false;
+                    });
+                    updatePostSelectedCount();
+                    showInfo('行业筛选已重置');
+                } else {
+                    showError(data.message);
+                }
+            })
+            .catch(error => {
+                showError('重置行业筛选失败: ' + error.message);
+            });
+        }
+
+        // 显示股票图表
+        function showStockChart(tsCode) {
+            fetch(`/api/stock_details/${tsCode}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('chartSection').style.display = 'block';
+                    document.getElementById('chartTitle').textContent = `股票 ${tsCode} 价格走势图`;
+                    renderPriceChart(data.data);
+                } else {
+                    showError('无法获取股票详情: ' + data.message);
+                }
+            })
+            .catch(error => {
+                showError('获取股票详情失败: ' + error.message);
+            });
+        }
+
+        // 渲染价格图表
+        function renderPriceChart(data) {
+            const chartDom = document.getElementById('priceChart');
+            if (priceChart) {
+                priceChart.dispose();
+            }
+            priceChart = echarts.init(chartDom);
+
+            const option = {
+                title: {
+                    text: '股票价格走势',
+                    left: 'center'
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'cross'
+                    }
+                },
+                legend: {
+                    data: ['收盘价', '5日均线', '20日均线', '30日均线'],
+                    bottom: 10
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: data.trade_dates,
+                    axisLabel: {
+                        rotate: 45,
+                        interval: Math.floor(data.trade_dates.length / 10)
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    scale: true,
+                    axisLabel: {
+                        formatter: '¥{value}'
+                    }
+                },
+                series: [
+                    {
+                        name: '收盘价',
+                        type: 'line',
+                        data: data.close_prices,
+                        smooth: true,
+                        lineStyle: {
+                            width: 2
+                        }
+                    },
+                    {
+                        name: '5日均线',
+                        type: 'line',
+                        data: data.ma5,
+                        smooth: true,
+                        lineStyle: {
+                            width: 1,
+                            type: 'dashed'
+                        },
+                        symbol: 'none'
+                    },
+                    {
+                        name: '20日均线',
+                        type: 'line',
+                        data: data.ma20,
+                        smooth: true,
+                        lineStyle: {
+                            width: 1,
+                            type: 'dashed'
+                        },
+                        symbol: 'none'
+                    },
+                    {
+                        name: '30日均线',
+                        type: 'line',
+                        data: data.ma30,
+                        smooth: true,
+                        lineStyle: {
+                            width: 1,
+                            type: 'dashed'
+                        },
+                        symbol: 'none'
+                    }
+                ]
+            };
+
+            priceChart.setOption(option);
+
+            // 响应式调整
+            window.addEventListener('resize', function() {
+                priceChart.resize();
+            });
+        }
+
+        // 重置分析
+        function resetAnalysis() {
+            if (analysisInterval) {
+                clearInterval(analysisInterval);
+            }
+
+            fetch('/api/reset')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resetUI();
+                    // 重置表单字段到默认值
+                    document.getElementById('shortPeriod').value = {{ default_short_period }};
+                    document.getElementById('shortPeriodUnit').value = '{{ default_short_period_unit }}';
+                    document.getElementById('longPeriod').value = {{ default_long_period }};
+                    document.getElementById('diffThreshold').value = {{ default_diff_threshold }};
+
+                    // 隐藏各个区域
+                    document.getElementById('statusSection').style.display = 'none';
+                    document.getElementById('resultsSection').style.display = 'none';
+                    document.getElementById('chartSection').style.display = 'none';
+
+                    showInfo('分析状态已重置');
+                } else {
+                    showError('重置失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                showError('重置失败: ' + error.message);
+            });
+        }
+
+        // 更新预筛选已选择行业数量
+        function updatePreSelectedCount() {
+            const selectedCount = document.querySelectorAll('input[name="pre_industries"]:checked').length;
+            document.getElementById('preSelectedCount').textContent = selectedCount;
+
+            if (selectedCount > 0) {
+                document.getElementById('preSelectedIndustries').style.display = 'block';
+            } else {
+                document.getElementById('preSelectedIndustries').style.display = 'none';
+            }
+        }
+
+        // 更新预筛选已选择指数数量
+        function updatePreSelectedIndexesCount() {
+            const selectedCount = document.querySelectorAll('input[name="pre_indexes"]:checked').length;
+            document.getElementById('preSelectedIndexesCount').textContent = selectedCount;
+
+            if (selectedCount > 0) {
+                document.getElementById('preSelectedIndexes').style.display = 'block';
+            } else {
+                document.getElementById('preSelectedIndexes').style.display = 'none';
+            }
+        }
+
+        // 重置UI
+        function resetUI() {
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('btnText').style.display = 'inline';
+            document.getElementById('btnLoading').style.display = 'none';
+        }
+
+        // 初始化预筛选行业和指数事件
+        function initializePreFilterEvents() {
+            // 预筛选行业选择事件
+            document.querySelectorAll('input[name="pre_industries"]').forEach(checkbox => {
+                checkbox.addEventListener('change', updatePreSelectedCount);
+            });
+
+            // 全选预筛选行业
+            document.getElementById('selectAllPreIndustries').addEventListener('click', function() {
+                document.querySelectorAll('input[name="pre_industries"]').forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+                updatePreSelectedCount();
+            });
+
+            // 清空预筛选行业
+            document.getElementById('clearAllPreIndustries').addEventListener('click', function() {
+                document.querySelectorAll('input[name="pre_industries"]').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                updatePreSelectedCount();
+            });
+
+            // 预筛选指数选择事件
+            document.querySelectorAll('input[name="pre_indexes"]').forEach(checkbox => {
+                checkbox.addEventListener('change', updatePreSelectedIndexesCount);
+            });
+
+            // 全选预筛选指数
+            document.getElementById('selectAllPreIndexes').addEventListener('click', function() {
+                document.querySelectorAll('input[name="pre_indexes"]').forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+                updatePreSelectedIndexesCount();
+            });
+
+            // 清空预筛选指数
+            document.getElementById('clearAllPreIndexes').addEventListener('click', function() {
+                document.querySelectorAll('input[name="pre_indexes"]').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                updatePreSelectedIndexesCount();
+            });
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            document.querySelector('.config-section').appendChild(errorDiv);
+
+            setTimeout(function() {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        // 显示信息
+        function showInfo(message) {
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'info-message';
+            infoDiv.textContent = message;
+            document.querySelector('.config-section').appendChild(infoDiv);
+
+            setTimeout(function() {
+                infoDiv.remove();
+            }, 3000);
+        }
+
+        // 根据单位动态设置输入框的最大值限制
+        function setPeriodInputLimits(periodInput, unitSelect) {
+            const unit = unitSelect.value;
+            switch (unit) {
+                case 'day':
+                    periodInput.max = 5000;  // 日: 1-5000
+                    break;
+                case 'month':
+                    periodInput.max = 180;    // 月: 1-180
+                    break;
+                case 'year':
+                    periodInput.max = 15;      // 年: 1-15
+                    break;
+            }
+        }
+
+        // 初始化周期输入框限制
+        function initializePeriodInputLimits() {
+            // 短期周期
+            const shortPeriod = document.getElementById('shortPeriod');
+            const shortPeriodUnit = document.getElementById('shortPeriodUnit');
+            setPeriodInputLimits(shortPeriod, shortPeriodUnit);
+
+            // 长期周期
+            const longPeriod = document.getElementById('longPeriod');
+            const longPeriodUnit = document.getElementById('longPeriodUnit');
+            setPeriodInputLimits(longPeriod, longPeriodUnit);
+
+            // 添加单位变化事件监听
+            shortPeriodUnit.addEventListener('change', function() {
+                setPeriodInputLimits(shortPeriod, shortPeriodUnit);
+            });
+
+            longPeriodUnit.addEventListener('change', function() {
+                setPeriodInputLimits(longPeriod, longPeriodUnit);
+            });
+        }
+
+        // 页面加载时的提示
+        window.addEventListener('load', function() {
+            // 初始化预筛选行业事件
+            initializePreFilterEvents();
+
+            // 初始化周期输入框限制
+            initializePeriodInputLimits();
+
+            showInfo('首次使用请确保已在 config.py 中配置您的 tushare API token');
+        });
+    </script>
+</body>
+</html>
