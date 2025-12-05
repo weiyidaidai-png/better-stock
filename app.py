@@ -295,7 +295,11 @@ def get_stock_details(ts_code):
             if not initialize_analyzer():
                 return jsonify({'success': False, 'message': '无法初始化股票分析器'})
 
-        details = analyzer.get_stock_details(ts_code, 60)
+        # 获取天数参数，默认为60天
+        days = request.args.get('days', 60)
+        days = int(days) if days.isdigit() else 60
+
+        details = analyzer.get_stock_details(ts_code, days)
         if details is None:
             return jsonify({'success': False, 'message': '无法获取股票详情'})
 

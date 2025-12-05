@@ -147,24 +147,11 @@ class StockAnalyzer:
             if df.empty:
                 return None
 
-            # 计算移动平均线
-            df['ma5'] = df['close'].rolling(window=5).mean()
-            df['ma20'] = df['close'].rolling(window=20).mean()
-            df['ma30'] = df['close'].rolling(window=30).mean()
-
             # 转换为字典格式，方便JSON序列化
             data = {
                 'trade_dates': df['trade_date'].dt.strftime('%Y-%m-%d').tolist(),
                 'close_prices': df['close'].tolist(),
-                'ma5': df['ma5'].tolist(),
-                'ma20': df['ma20'].tolist(),
-                'ma30': df['ma30'].tolist(),
-                'latest_data': {
-                    'close': df['close'].iloc[-1],
-                    'ma5': df['ma5'].iloc[-1],
-                    'ma20': df['ma20'].iloc[-1],
-                    'ma30': df['ma30'].iloc[-1]
-                }
+                'actual_days': len(df)  # 返回实际获取到的数据天数
             }
 
             return data

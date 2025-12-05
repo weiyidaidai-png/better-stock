@@ -95,13 +95,14 @@ def filter_stocks_by_indexes(stock_list, indexes, fetcher=None):
     # 去重指数成分股
     all_index_stocks = list(set(all_index_stocks))
 
-    # 如果没有获取到任何指数成分股，返回空列表
+    # 如果没有获取到任何指数成分股，返回全部股票而不是空列表
     if not all_index_stocks:
-        error_msg = f"[指数筛选] 错误：无法获取任何指数的成分股数据"
+        error_msg = f"[指数筛选] 警告：无法获取任何指数的成分股数据"
         if api_failed_indexes:
             error_msg += f"，API调用失败的指数：{api_failed_indexes}"
+        error_msg += f"，将返回全部股票作为备选方案"
         print(error_msg)
-        return pd.DataFrame(columns=stock_list.columns)
+        return stock_list
 
     print(f"\n[指数筛选汇总]")
     print(f"- 所有选中的指数共有 {len(all_index_stocks)} 只成分股（去重后）")
@@ -332,44 +333,59 @@ def get_index_constituents(index_name, fetcher=None):
 
         if index_constituents.empty:
             print(f"[指数成分股获取] 错误：无法获取指数 {index_name} 的成分股数据，所有接口均返回空")
-            return pd.DataFrame()
+            # 尝试使用简化方法获取指数成分股
+            print(f"[指数成分股获取] 尝试使用简化方法获取指数成分股")
+            # 获取所有股票列表
+            all_stocks = fetcher.get_stock_list()
+            if all_stocks.empty:
+                print(f"[指数成分股获取] 错误：无法获取所有股票列表")
+                return pd.DataFrame()
+            # 使用简化方法筛选指数成分股
+            simplified_constituents = get_simplified_index_constituents(index_name, all_stocks)
+            if simplified_constituents:
+                print(f"[指数成分股获取] 简化方法成功，获取到 {len(simplified_constituents)} 只成分股")
+                # 创建 DataFrame 并返回
+                index_constituents = pd.DataFrame({'ts_code': simplified_constituents})
+            else:
+                print(f"[指数成分股获取] 简化方法也失败了，无法获取指数 {index_name} 的成分股")
+                return pd.DataFrame()
+        else:
+            # 处理不同接口返回的列名差异
+            # index_member 接口返回的列名通常是 'con_code'
+            # index_weight 接口返回的列名通常是 'con_code' 或 'ts_code'
+            print(f"[指数成分股获取] 原始数据列名：{list(index_constituents.columns)}")
 
-        # 处理不同接口返回的列名差异
-        # index_member 接口返回的列名通常是 'con_code'
-        # index_weight 接口返回的列名通常是 'con_code' 或 'ts_code'
-        print(f"[指数成分股获取] 原始数据列名：{list(index_constituents.columns)}")
+            if 'con_code' in index_constituents.columns:
+                # 将 con_code 重命名为 ts_code
+                print(f"[指数成分股获取] 将 'con_code' 列重命名为 'ts_code'")
+                index_constituents.rename(columns={'con_code': 'ts_code'}, inplace=True)
+            elif 'ts_code' not in index_constituents.columns:
+                print(f"[指数成分股获取] 错误：指数成分股数据中没有找到 'ts_code' 列")
+                return pd.DataFrame()
 
-        if 'con_code' in index_constituents.columns:
-            # 将 con_code 重命名为 ts_code
-            print(f"[指数成分股获取] 将 'con_code' 列重命名为 'ts_code'")
-            index_constituents.rename(columns={'con_code': 'ts_code'}, inplace=True)
-        elif 'ts_code' not in index_constituents.columns:
-            print(f"[指数成分股获取] 错误：指数成分股数据中没有找到 'ts_code' 列")
-            return pd.DataFrame()
+            # 处理 index_weight 接口返回的历史数据
+            # 如果数据中有 'trade_date' 列，只保留最新的成分股数据
+            if 'trade_date' in index_constituents.columns:
+                print(f"[指数成分股获取] 发现 'trade_date' 列，筛选最新的成分股数据")
+                print(f"[指数成分股获取] 原始数据包含 {len(index_constituents)} 条历史记录")
 
-        # 处理 index_weight 接口返回的历史数据
-        # 如果数据中有 'trade_date' 列，只保留最新的成分股数据
-        if 'trade_date' in index_constituents.columns:
-            print(f"[指数成分股获取] 发现 'trade_date' 列，筛选最新的成分股数据")
-            print(f"[指数成分股获取] 原始数据包含 {len(index_constituents)} 条历史记录")
+                # 将 trade_date 转换为日期格式
+                index_constituents['trade_date'] = pd.to_datetime(index_constituents['trade_date'], format='%Y%m%d')
 
-            # 将 trade_date 转换为日期格式
-            index_constituents['trade_date'] = pd.to_datetime(index_constituents['trade_date'], format='%Y%m%d')
+                # 获取最新的交易日期
+                latest_date = index_constituents['trade_date'].max()
+                print(f"[指数成分股获取] 最新的交易日期：{latest_date.strftime('%Y-%m-%d')}")
 
-            # 获取最新的交易日期
-            latest_date = index_constituents['trade_date'].max()
-            print(f"[指数成分股获取] 最新的交易日期：{latest_date.strftime('%Y-%m-%d')}")
+                # 只保留最新日期的成分股数据
+                index_constituents = index_constituents[index_constituents['trade_date'] == latest_date]
+                print(f"[指数成分股获取] 筛选后保留 {len(index_constituents)} 条最新记录")
 
-            # 只保留最新日期的成分股数据
-            index_constituents = index_constituents[index_constituents['trade_date'] == latest_date]
-            print(f"[指数成分股获取] 筛选后保留 {len(index_constituents)} 条最新记录")
+            # 只保留 ts_code 列并去重
+            index_constituents = index_constituents[['ts_code']].drop_duplicates()
+            print(f"[指数成分股获取] 去重后最终成分股数量：{len(index_constituents)}")
 
-        # 只保留 ts_code 列并去重
-        index_constituents = index_constituents[['ts_code']].drop_duplicates()
-        print(f"[指数成分股获取] 去重后最终成分股数量：{len(index_constituents)}")
-
-        if len(index_constituents) > 0:
-            print(f"[指数成分股获取] 前5只成分股代码：{index_constituents['ts_code'].tolist()[:5]}")
+            if len(index_constituents) > 0:
+                print(f"[指数成分股获取] 前5只成分股代码：{index_constituents['ts_code'].tolist()[:5]}")
 
         # 验证指数成分股的准确性
         expected_counts = {
@@ -392,4 +408,24 @@ def get_index_constituents(index_name, fetcher=None):
         # 打印详细的错误信息
         import traceback
         traceback.print_exc()
-        return pd.DataFrame()
+        # 尝试使用简化方法获取指数成分股
+        print(f"[指数成分股获取] 异常处理：尝试使用简化方法获取指数成分股")
+        try:
+            # 获取所有股票列表
+            all_stocks = fetcher.get_stock_list()
+            if all_stocks.empty:
+                print(f"[指数成分股获取] 异常处理：无法获取所有股票列表")
+                return pd.DataFrame()
+            # 使用简化方法筛选指数成分股
+            simplified_constituents = get_simplified_index_constituents(index_name, all_stocks)
+            if simplified_constituents:
+                print(f"[指数成分股获取] 异常处理：简化方法成功，获取到 {len(simplified_constituents)} 只成分股")
+                # 创建 DataFrame 并返回
+                index_constituents = pd.DataFrame({'ts_code': simplified_constituents})
+                return index_constituents
+            else:
+                print(f"[指数成分股获取] 异常处理：简化方法也失败了，无法获取指数 {index_name} 的成分股")
+                return pd.DataFrame()
+        except Exception as e2:
+            print(f"[指数成分股获取] 异常处理：简化方法也发生异常 - {type(e2).__name__}: {str(e2)}")
+            return pd.DataFrame()
