@@ -497,6 +497,9 @@
                 <table id="resultsTable">
                     <thead>
                         <tr>
+                            <th style="width: 50px;">
+                                <input type="checkbox" id="selectAllStocks" onclick="toggleSelectAll()">
+                            </th>
                             <th>股票代码</th>
                             <th>股票名称</th>
                             <th>所属行业</th>
@@ -509,6 +512,69 @@
                     <tbody id="resultsTableBody">
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- 股票可视化分析区域 -->
+        <div class="visualization-section" id="visualizationSection" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3>股票可视化分析</h3>
+                <button type="button" class="btn btn-primary" id="closeVisualizationBtn" style="background: #6c757d;">
+                    关闭可视化
+                </button>
+            </div>
+
+            <!-- 可视化控制面板 -->
+            <div class="visualization-controls" style="margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 6px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: center;">
+                    <!-- 已选择股票数量显示 -->
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-weight: 600; color: #555;">已选择:</span>
+                        <span id="selectedStocksCount" style="font-weight: 600; color: #667eea;">0</span> 只股票
+                    </div>
+
+                    <!-- 时间跨度选择 -->
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-weight: 600; color: #555;">时间跨度:</span>
+                        <input type="number" id="timeSpanNumber" value="365" min="1" max="2000" style="padding: 8px 15px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 14px; width: 100px;">
+                        <select id="timeSpanUnit" style="padding: 8px 15px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 14px;">
+                            <option value="day">天</option>
+                            <option value="month">月</option>
+                            <option value="year" selected>年</option>
+                        </select>
+                    </div>
+
+                    <!-- 显示模式选择 -->
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-weight: 600; color: #555;">显示模式:</span>
+                        <div style="display: flex; gap: 5px;">
+                            <button type="button" class="btn btn-primary" id="absoluteModeBtn" style="padding: 6px 15px; font-size: 14px;">
+                                绝对价格
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="relativeModeBtn" style="padding: 6px 15px; font-size: 14px;">
+                                相对涨跌幅
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 生成图表按钮 -->
+                    <button type="button" class="btn btn-primary" id="generateChartBtn" style="padding: 10px 25px; font-size: 16px;">
+                        生成对比图表
+                    </button>
+                </div>
+            </div>
+
+            <!-- 股票统计信息 -->
+            <div class="stock-stats-section" id="stockStatsSection" style="display: none; margin-bottom: 20px;">
+                <h4 style="margin-bottom: 15px; color: #495057;">选中股票统计信息</h4>
+                <div id="stockStatsContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
+                    <!-- 统计信息卡片将通过JavaScript动态生成 -->
+                </div>
+            </div>
+
+            <!-- 股票对比图表 -->
+            <div class="comparison-chart-section">
+                <div class="chart-container" id="comparisonChart" style="height: 500px;"></div>
             </div>
         </div>
 
@@ -526,7 +592,11 @@
     <script>
         let analysisInterval = null;
         let priceChart = null;
+        let comparisonChart = null;
         let currentPostIndustries = [];
+        let selectedStocks = [];
+        let currentDisplayMode = 'absolute'; // 'absolute' or 'relative'
+        let stockDataCache = {}; // 缓存股票数据，避免重复请求
 
         // 表单提交处理
         document.getElementById('configForm').addEventListener('submit', function(e) {
@@ -543,6 +613,361 @@
         document.getElementById('closeChartBtn').addEventListener('click', function() {
             document.getElementById('chartSection').style.display = 'none';
         });
+
+        // 全选/取消全选股票
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAllStocks');
+            const stockCheckboxes = document.querySelectorAll('.stock-checkbox');
+
+            stockCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+
+            updateSelectedStocks();
+        }
+
+        // 更新已选择的股票列表
+        function updateSelectedStocks() {
+            const checkedCheckboxes = document.querySelectorAll('.stock-checkbox:checked');
+            selectedStocks = Array.from(checkedCheckboxes).map(checkbox => ({
+                ts_code: checkbox.getAttribute('data-ts-code'),
+                name: checkbox.getAttribute('data-stock-name')
+            }));
+
+            // 更新已选择数量显示
+            document.getElementById('selectedStocksCount').textContent = selectedStocks.length;
+
+            // 如果有选择的股票，显示可视化分析区域
+            if (selectedStocks.length > 0) {
+                document.getElementById('visualizationSection').style.display = 'block';
+            } else {
+                document.getElementById('visualizationSection').style.display = 'none';
+            }
+        }
+
+        // 关闭可视化分析区域
+        document.getElementById('closeVisualizationBtn').addEventListener('click', function() {
+            document.getElementById('visualizationSection').style.display = 'none';
+        });
+
+        // 切换显示模式
+        document.getElementById('absoluteModeBtn').addEventListener('click', function() {
+            currentDisplayMode = 'absolute';
+            document.getElementById('absoluteModeBtn').className = 'btn btn-primary';
+            document.getElementById('relativeModeBtn').className = 'btn btn-secondary';
+
+            // 如果已经生成了图表，重新渲染
+            if (selectedStocks.length > 0 && stockDataCache) {
+                renderComparisonChart(Object.values(stockDataCache));
+            }
+        });
+
+        document.getElementById('relativeModeBtn').addEventListener('click', function() {
+            currentDisplayMode = 'relative';
+            document.getElementById('relativeModeBtn').className = 'btn btn-primary';
+            document.getElementById('absoluteModeBtn').className = 'btn btn-secondary';
+
+            // 如果已经生成了图表，重新渲染
+            if (selectedStocks.length > 0 && stockDataCache) {
+                renderComparisonChart(Object.values(stockDataCache));
+            }
+        });
+
+        // 生成对比图表按钮点击事件
+        document.getElementById('generateChartBtn').addEventListener('click', function() {
+            if (selectedStocks.length === 0) {
+                showError('请至少选择一只股票');
+                return;
+            }
+
+            generateComparisonChart();
+        });
+
+        // 根据时间单位设置输入框的最大值限制
+        function setTimeSpanInputLimits() {
+            const unitSelect = document.getElementById('timeSpanUnit');
+            const numberInput = document.getElementById('timeSpanNumber');
+            const unit = unitSelect.value;
+
+            switch (unit) {
+                case 'day':
+                    numberInput.max = 2000;  // 日: 1-2000
+                    break;
+                case 'month':
+                    numberInput.max = 180;    // 月: 1-180
+                    break;
+                case 'year':
+                    numberInput.max = 15;      // 年: 1-15
+                    break;
+            }
+
+            // 如果当前值超过新的最大值，调整为最大值
+            if (numberInput.value > numberInput.max) {
+                numberInput.value = numberInput.max;
+            }
+        }
+
+        // 转换时间跨度为天数
+        function convertTimeSpanToDays() {
+            const number = parseInt(document.getElementById('timeSpanNumber').value);
+            const unit = document.getElementById('timeSpanUnit').value;
+
+            switch (unit) {
+                case 'day':
+                    return number;
+                case 'month':
+                    return number * 20;  // 1个月≈20个交易日
+                case 'year':
+                    return number * 252; // 1年≈252个交易日
+                default:
+                    return 365;
+            }
+        }
+
+        // 生成对比图表
+        function generateComparisonChart() {
+            const timeSpanDays = convertTimeSpanToDays();
+
+            // 显示加载状态
+            const generateBtn = document.getElementById('generateChartBtn');
+            const originalText = generateBtn.textContent;
+            generateBtn.textContent = '生成中...';
+            generateBtn.disabled = true;
+
+            // 并行获取所有选中股票的数据
+            const fetchPromises = selectedStocks.map(stock => {
+                const cacheKey = `${stock.ts_code}_${timeSpanDays}`;
+
+                if (stockDataCache[cacheKey]) {
+                    return Promise.resolve(stockDataCache[cacheKey]);
+                }
+
+                return fetch(`/api/stock_details/${stock.ts_code}?days=${timeSpanDays}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const stockData = {
+                                ...stock,
+                                ...data.data
+                            };
+
+                            // 检查实际获取的数据天数是否明显少于请求的天数
+                            const requestedDays = timeSpanDays;
+                            const actualDays = stockData.actual_days || 0;
+
+                            if (actualDays > 0 && actualDays < requestedDays * 0.5) {
+                                console.warn(`股票 ${stock.name} 仅获取到 ${actualDays} 天数据，请求了 ${requestedDays} 天`);
+                            }
+
+                            stockDataCache[cacheKey] = stockData;
+                            return stockData;
+                        } else {
+                            throw new Error(`无法获取股票 ${stock.name} 的数据: ${data.message}`);
+                        }
+                    });
+            });
+
+            Promise.all(fetchPromises)
+                .then(stockDataArray => {
+                    // 显示统计信息
+                    displayStockStats(stockDataArray);
+
+                    // 渲染对比图表
+                    renderComparisonChart(stockDataArray);
+
+                    generateBtn.textContent = originalText;
+                    generateBtn.disabled = false;
+                })
+                .catch(error => {
+                    showError(`生成图表失败: ${error.message}`);
+                    generateBtn.textContent = originalText;
+                    generateBtn.disabled = false;
+                });
+        }
+
+        // 显示股票统计信息
+        function displayStockStats(stockDataArray) {
+            const statsContainer = document.getElementById('stockStatsContainer');
+            statsContainer.innerHTML = '';
+
+            stockDataArray.forEach(stockData => {
+                const statsCard = document.createElement('div');
+                statsCard.style.padding = '15px';
+                statsCard.style.borderRadius = '6px';
+                statsCard.style.background = '#ffffff';
+                statsCard.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+
+                // 计算统计信息
+                const closePrices = stockData.close_prices;
+                const startPrice = closePrices[0];
+                const endPrice = closePrices[closePrices.length - 1];
+                const changePercent = ((endPrice - startPrice) / startPrice) * 100;
+                const maxPrice = Math.max(...closePrices);
+                const minPrice = Math.min(...closePrices);
+                const avgPrice = closePrices.reduce((a, b) => a + b, 0) / closePrices.length;
+
+                statsCard.innerHTML = `
+                    <h5 style="margin-bottom: 10px; color: #667eea; font-weight: 600;">${stockData.name} (${stockData.ts_code})</h5>
+                    <div style="font-size: 14px; line-height: 1.8;">
+                        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0;">
+                            <span style="color: #666;">期初价格:</span>
+                            <span style="font-weight: 600;">¥${startPrice.toFixed(2)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0;">
+                            <span style="color: #666;">期末价格:</span>
+                            <span style="font-weight: 600;">¥${endPrice.toFixed(2)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0;">
+                            <span style="color: #666;">涨跌幅:</span>
+                            <span style="font-weight: 600; color: ${changePercent >= 0 ? '#dc3545' : '#28a745'};">
+                                ${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%
+                            </span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0;">
+                            <span style="color: #666;">最高价:</span>
+                            <span style="font-weight: 600;">¥${maxPrice.toFixed(2)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0;">
+                            <span style="color: #666;">最低价:</span>
+                            <span style="font-weight: 600;">¥${minPrice.toFixed(2)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 4px 0;">
+                            <span style="color: #666;">平均价:</span>
+                            <span style="font-weight: 600;">¥${avgPrice.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+
+                statsContainer.appendChild(statsCard);
+            });
+
+            // 显示统计信息区域
+            document.getElementById('stockStatsSection').style.display = 'block';
+        }
+
+        // 渲染对比图表
+        function renderComparisonChart(stockDataArray) {
+            const chartDom = document.getElementById('comparisonChart');
+
+            if (comparisonChart) {
+                comparisonChart.dispose();
+            }
+
+            comparisonChart = echarts.init(chartDom);
+
+            // 准备图表数据
+            const dates = stockDataArray[0]?.trade_dates || [];
+            const series = [];
+
+            stockDataArray.forEach(stockData => {
+                let data;
+
+                if (currentDisplayMode === 'relative') {
+                    // 相对涨跌幅模式，以第一天价格为基准
+                    const basePrice = stockData.close_prices[0];
+                    data = stockData.close_prices.map(price => ((price - basePrice) / basePrice) * 100);
+                } else {
+                    // 绝对价格模式
+                    data = stockData.close_prices;
+                }
+
+                series.push({
+                    name: `${stockData.name} (${stockData.ts_code})`,
+                    type: 'line',
+                    data: data,
+                    smooth: true,
+                    lineStyle: {
+                        width: 2
+                    },
+                    symbol: 'none',
+                    emphasis: {
+                        focus: 'series',
+                        label: {
+                            show: true,
+                            position: 'top'
+                        }
+                    }
+                });
+            });
+
+            const option = {
+                title: {
+                    text: `股票价格对比 ${currentDisplayMode === 'relative' ? '(相对涨跌幅)' : ''}`,
+                    left: 'center'
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'cross'
+                    },
+                    formatter: function(params) {
+                        let result = `${params[0].axisValue}<br/>`;
+
+                        params.forEach(param => {
+                            let value = param.value;
+
+                            if (currentDisplayMode === 'relative') {
+                                result += `${param.seriesName}: ${value >= 0 ? '+' : ''}${value.toFixed(2)}%<br/>`;
+                            } else {
+                                result += `${param.seriesName}: ¥${value.toFixed(2)}<br/>`;
+                            }
+                        });
+
+                        return result;
+                    }
+                },
+                legend: {
+                    data: series.map(s => s.name),
+                    bottom: 10,
+                    type: 'scroll',
+                    pageButtonPosition: 'end',
+                    pageFormatter: '{current}/{total}',
+                    pageButtonPosition: 'right'
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: dates,
+                    axisLabel: {
+                        rotate: 45,
+                        interval: Math.floor(dates.length / 10)
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    scale: true,
+                    axisLabel: {
+                        formatter: currentDisplayMode === 'relative' ? '{value}%' : '¥{value}'
+                    }
+                },
+                dataZoom: [
+                    {
+                        type: 'inside',
+                        start: 0,
+                        end: 100
+                    },
+                    {
+                        start: 0,
+                        end: 100,
+                        height: 20,
+                        bottom: 0
+                    }
+                ],
+                series: series
+            };
+
+            comparisonChart.setOption(option);
+
+            // 响应式调整
+            window.addEventListener('resize', function() {
+                comparisonChart.resize();
+            });
+        }
 
         // 开始分析
         function startAnalysis() {
@@ -706,6 +1131,7 @@
                 const diffText = `${stock.diff_percent > 0 ? '+' : ''}${stock.diff_percent.toFixed(2)}%`;
 
                 row.innerHTML = `
+                    <td><input type="checkbox" class="stock-checkbox" data-ts-code="${stock.ts_code}" data-stock-name="${stock.name}"></td>
                     <td><a href="#" class="stock-link" data-ts-code="${stock.ts_code}">${stock.ts_code}</a></td>
                     <td>${stock.name}</td>
                     <td>${stock.industry || '未知行业'}</td>
@@ -726,6 +1152,14 @@
                     showStockChart(tsCode);
                 });
             });
+
+            // 添加股票选择复选框事件监听器
+            document.querySelectorAll('.stock-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', updateSelectedStocks);
+            });
+
+            // 初始化已选择股票列表
+            updateSelectedStocks();
 
             // 加载后筛选行业列表
             loadPostFilterIndustries();
@@ -1157,7 +1591,15 @@
             // 初始化周期输入框限制
             initializePeriodInputLimits();
 
+            // 初始化时间跨度输入限制
+            setTimeSpanInputLimits();
+
             showInfo('首次使用请确保已在 config.py 中配置您的 tushare API token');
+        });
+
+        // 添加时间单位变化事件监听
+        document.getElementById('timeSpanUnit').addEventListener('change', function() {
+            setTimeSpanInputLimits();
         });
     </script>
 </body>
